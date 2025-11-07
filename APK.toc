@@ -1,0 +1,9 @@
+## Interface: 110000
+## Title: Azeroth Pet Keeper (APK)
+## Notes: Vanity pet manager — favorites, blacklist, random, counters, UI, minimap, zone sets, last summon.
+## Author: Rehboa - Staghelm US
+## Version: 1.2.0
+## SavedVariables: APKDB
+
+APK.lua
+APK_UI.lua
