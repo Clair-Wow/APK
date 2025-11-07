@@ -1,0 +1,18 @@
+{
+  "Lua.workspace.library": [
+    "${workspaceFolder}/_wow_api"
+  ],
+  "Lua.diagnostics.disable": [
+    "lowercase-global",
+    "trailing-space"
+  ],
+  "Lua.completion.callSnippet": "Replace",
+  "Lua.hover.enable": true,
+  "Lua.signatureHelp.enable": true,
+  "Lua.runtime.version": "Lua 5.1",
+  "Lua.workspace.checkThirdParty": false,
+  "[lua]": {
+    "editor.formatOnSave": true
+  },
+  "Lua.format.enable": true
+}
