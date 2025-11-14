@@ -10,6 +10,7 @@ local defaults = {
   blacklist = {},   -- [petGUID]=true
   summonCount = {}, -- [petGUID]=number
   lastSummonedGUID = nil,
+  recent = {},      -- queue of recent GUIDs (anti-repeat)
   settings = {
     autoOnLogin = true,
     autoOnDismount = true,
@@ -24,9 +25,7 @@ local defaults = {
     -- Minimap
     minimap = { show = true, angle = 210, radius = 115 },
 
-    -- Zone sets
-    zoneMode = false, -- if true, use zone set when available
-    zoneSets = {},    -- [mapID] = { [guid]=true, ... }
+    -- (Zone feature removed)
   },
 }
 
@@ -50,6 +49,23 @@ local function isBlk(guid) return APKDB.blacklist[guid] end
 -- Helpers
 -- =========================
 local PET_TYPE_FLYING = 3 -- Battle-pet family "Flying"
+local RECENT_WINDOW = 10  -- don't repeat any of the last N summons
+
+local function InRecent(guid)
+  for i = #APKDB.recent, 1, -1 do
+    if APKDB.recent[i] == guid then return true end
+  end
+  return false
+end
+
+local function PushRecent(guid)
+  if not guid then return end
+  local r = APKDB.recent
+  r[#r + 1] = guid
+  if #r > RECENT_WINDOW then
+    table.remove(r, 1)
+  end
+end
 
 local function AllowedByLocation()
   if IsInRaid() and not S().allowInRaid then return false, "raid" end
@@ -78,39 +94,33 @@ local function AddToPoolIfEligible(pool, guid, petType, onlyFav, mode)
   if onlyFav and not isFav(guid) then return end
   if not ModePass(petType, mode) then return end
   if C_PetJournal.PetIsSummonable and not C_PetJournal.PetIsSummonable(guid) then return end
+  if InRecent(guid) then return end
   pool[#pool + 1] = guid
 end
 
--- Build pool from a GUID=>true set
-local function BuildPoolFromSet(setTbl, onlyFav, mode)
-  local pool = {}
-  if not setTbl then return pool end
-  for guid in pairs(setTbl) do
-    local _, _, owned, _, _, _, _, _, _, petType = C_PetJournal.GetPetInfoByPetID(guid)
-    if owned then AddToPoolIfEligible(pool, guid, petType, onlyFav, mode) end
-  end
-  return pool
-end
-
--- Build pool from entire collection
-local function BuildPoolFromCollection(onlyFav, mode)
+-- Build pool from entire collection (zone feature removed)
+local function BuildPool(onlyFav, mode)
   local pool = {}
   local n = C_PetJournal.GetNumPets()
   for i = 1, n do
-    local guid, speciesID, owned, _, _, _, _, _, _, petType = C_PetJournal.GetPetInfoByIndex(i)
+    local guid, _, owned, _, _, _, _, _, _, petType = C_PetJournal.GetPetInfoByIndex(i)
     if owned and guid then AddToPoolIfEligible(pool, guid, petType, onlyFav, mode) end
   end
   return pool
 end
 
 local function RandPick(t)
-  if #t == 0 then return nil end
-  return t[math.random(#t)]
+  local n = #t
+  if n == 0 then return nil end
+  -- basic shuffle step helps avoid bias if RNG is streaky
+  local k = math.random(n)
+  return t[k]
 end
 
 local function IncrementCount(guid)
   APKDB.summonCount[guid] = (APKDB.summonCount[guid] or 0) + 1
   APKDB.lastSummonedGUID = guid
+  PushRecent(guid)
 end
 
 local function SummonGUID(guid)
@@ -123,14 +133,6 @@ local function SummonGUID(guid)
   IncrementCount(guid)
   local _, _, _, _, _, _, _, speciesName, icon = C_PetJournal.GetPetInfoByPetID(guid)
   A:Notify(("Summoned |T%s:16|t %s"):format(icon or 0, speciesName or "pet"))
-end
-
--- Current zone mapID
-local function CurrentMapID()
-  if C_Map and C_Map.GetBestMapForUnit then
-    return C_Map.GetBestMapForUnit("player")
-  end
-  return nil
 end
 
 local function DoSummon(fromAuto, forceLast)
@@ -146,8 +148,8 @@ local function DoSummon(fromAuto, forceLast)
   local mode = S().randomMode or "ANY"
   local onlyFav = fromAuto and S().useFavoritesForAuto or false
 
-  -- Prefer last on auto (or explicit force)
-  if (forceLast or (fromAuto and APKDB.lastSummonedGUID)) and APKDB.lastSummonedGUID then
+  -- Only re-summon last when explicitly requested
+  if forceLast and APKDB.lastSummonedGUID then
     local last = APKDB.lastSummonedGUID
     if not isBlk(last) and (not onlyFav or isFav(last))
         and (not C_PetJournal.PetIsSummonable or C_PetJournal.PetIsSummonable(last)) then
@@ -156,23 +158,18 @@ local function DoSummon(fromAuto, forceLast)
     end
   end
 
-  local pool
+  local pool = BuildPool(onlyFav, mode)
 
-  -- Zone set if enabled and present
-  if S().zoneMode then
-    local mapID = CurrentMapID()
-    if mapID and S().zoneSets[mapID] and next(S().zoneSets[mapID]) ~= nil then
-      pool = BuildPoolFromSet(S().zoneSets[mapID], onlyFav, mode)
-    end
+  -- If pool empty due to favorites filter, fall back once to any
+  if #pool == 0 and onlyFav then
+    A:Notify("No favorites matched filters. Falling back to any allowed pet.")
+    pool = BuildPool(false, mode)
   end
 
-  -- Fallbacks: favorites/collection
-  if not pool or #pool == 0 then
-    pool = BuildPoolFromCollection(onlyFav, mode)
-    if #pool == 0 and onlyFav then
-      A:Notify("No favorites matched filters. Falling back to any allowed pet.")
-      pool = BuildPoolFromCollection(false, mode)
-    end
+  -- Final guard: if still empty, allow last as true fallback
+  if #pool == 0 and APKDB.lastSummonedGUID then
+    SummonGUID(APKDB.lastSummonedGUID)
+    return
   end
 
   local pick = RandPick(pool)
@@ -202,6 +199,7 @@ f:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
 f:SetScript("OnEvent", function(_, event, arg1)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     APKDB = copyDefaults(defaults, APKDB or {})
+    if not APKDB.recent then APKDB.recent = {} end
     if A.CreateSummonButton then A.CreateSummonButton() end
     if A.CreateMinimapButton then A.CreateMinimapButton() end
     print("|cFF00FF99APK loaded|r — /apk help")
@@ -221,7 +219,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
   end
 end)
 
--- Slash commands
+-- Slash commands (zone commands removed)
 SLASH_APK1 = "/apk"
 SLASH_APK2 = "/keeper"
 SlashCmdList["APK"] = function(msg)
@@ -229,8 +227,7 @@ SlashCmdList["APK"] = function(msg)
   if msg == "" or msg == "summon" then
     DoSummon(false)
   elseif msg == "help" then
-    A:Notify(
-      "Commands: /apk, /apk summon, /apk last, /apk options, /apk manager, /apk minimap show|hide|reset, /apk zone on|off|add|clear")
+    A:Notify("Commands: /apk, /apk summon, /apk last, /apk options, /apk manager, /apk minimap show|hide|reset")
   elseif msg == "last" then
     DoSummon(false, true)
   elseif msg == "options" or msg == "opt" then
@@ -256,29 +253,6 @@ SlashCmdList["APK"] = function(msg)
     S().minimap.radius = 115
     if A.CreateMinimapButton then A.CreateMinimapButton() end
     A:Notify("Minimap button reset.")
-
-    -- Zone sets
-  elseif msg == "zone on" then
-    S().zoneMode = true; A:Notify("Zone mode ON.")
-  elseif msg == "zone off" then
-    S().zoneMode = false; A:Notify("Zone mode OFF.")
-  elseif msg == "zone add" then
-    local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-    local guid = C_PetJournal.GetSummonedPetGUID and C_PetJournal.GetSummonedPetGUID()
-    if not mapID or not guid then
-      A:Notify("Need a map and a summoned pet to add."); return
-    end
-    S().zoneSets[mapID] = S().zoneSets[mapID] or {}
-    S().zoneSets[mapID][guid] = true
-    A:Notify("Added current pet to this zone's set.")
-  elseif msg == "zone clear" then
-    local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
-    if mapID and S().zoneSets[mapID] then
-      S().zoneSets[mapID] = {}
-      A:Notify("Cleared this zone's set.")
-    else
-      A:Notify("No set for this zone.")
-    end
   else
     A:Notify("Unknown. Try /apk help")
   end

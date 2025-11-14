@@ -10,7 +10,7 @@ local function CurrentPet()
 end
 
 -- =========================
--- Main Summon Button (Blizz style)
+-- Main Summon Button
 -- =========================
 function A.CreateSummonButton()
   if A.Button then return end
@@ -63,7 +63,7 @@ function A.CreateSummonButton()
 end
 
 -- =========================
--- Minimap Button (no libs)
+-- Minimap Button
 -- =========================
 function A.CreateMinimapButton()
   if A.MinimapButton then
@@ -92,7 +92,7 @@ function A.CreateMinimapButton()
   local function SetPosition()
     local ang  = math.rad((S().minimap and S().minimap.angle) or 210)
     local base = (S().minimap and S().minimap.radius) or 115
-    local r    = math.max(base, 95) -- force outside the minimap edge
+    local r    = math.max(base, 95)
     local x    = math.cos(ang) * r
     local y    = math.sin(ang) * r
     b:ClearAllPoints()
@@ -147,26 +147,24 @@ function A.CreateMinimapButton()
 end
 
 -- =========================
--- Options Panel (scrollable, scale-safe)
+-- Options Panel (zones removed)
 -- =========================
 local options
 function A.ShowOptions()
   if options and options:IsShown() then return end
 
   options = CreateFrame("Frame", "APK_Options", UIParent, "BasicFrameTemplateWithInset")
-  options:SetSize(600, 520) -- larger viewport
+  options:SetSize(600, 480)
   options:SetPoint("CENTER")
   options:SetToplevel(true)
   options:SetClampedToScreen(true)
   options.TitleText:SetText("Azeroth Pet Keeper — Options")
 
-  -- Use the template's built-in CloseButton
   if options.CloseButton then
     options.CloseButton:ClearAllPoints()
     options.CloseButton:SetPoint("TOPRIGHT", options, "TOPRIGHT", -4, -4)
   end
 
-  -- Scroll container (handles long content / small screens / scaled UIs)
   local scroll = CreateFrame("ScrollFrame", "APK_OptionsScroll", options, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", 12, -36)
   scroll:SetPoint("BOTTOMRIGHT", -30, 14)
@@ -189,7 +187,6 @@ function A.ShowOptions()
     return cb
   end
 
-  -- Core toggles
   addCheck("Auto-summon at Login", "autoOnLogin", "Summon a pet shortly after login.")
   addCheck("Auto-summon after Dismount", "autoOnDismount", "Summon when you dismount.")
   addCheck("Allow Indoors", "allowIndoors", "Permit summoning indoors.")
@@ -198,7 +195,6 @@ function A.ShowOptions()
   addCheck("Use Favorites for Auto-summon", "useFavoritesForAuto", "Auto uses only Favorites (if any).")
   addCheck("Lock Summon Button", "buttonLocked", "Prevent dragging the on-screen button.")
 
-  -- Random mode dropdown
   local function ModeLabel(v)
     if v == "FLYING" then
       return "Flying"
@@ -226,7 +222,7 @@ function A.ShowOptions()
       info.func = function()
         S().randomMode = val
         UIDropDownMenu_SetSelectedValue(dd, val)
-        UIDropDownMenu_SetText(dd, ModeLabel(val)) -- force label
+        UIDropDownMenu_SetText(dd, ModeLabel(val))
       end
       info.checked = (S().randomMode == val)
       UIDropDownMenu_AddButton(info, level)
@@ -265,21 +261,10 @@ function A.ShowOptions()
     y = y - 28
   end
 
-  -- Zone-based pets (tip aligned to checkbox text)
-  do
-    local cb = addCheck("Enable Zone-based Pets", "zoneMode")
-    y = y + 28 -- addCheck already decremented; restore so tip sits right beneath
-
-    local tip = scrollContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    tip:SetText("Use /apk zone add to add your current pet to this zone; /apk zone clear to clear it.")
-    tip:SetPoint("TOPLEFT", cb.text, "BOTTOMLEFT", 0, -2) -- align with label text (not the checkbox box)
-    y = y - 28 - 24
-  end
-
-  -- Bottom buttons (moved left to avoid scrollbar overlap)
+  -- Bottom buttons
   local summonNow = CreateFrame("Button", nil, options, "UIPanelButtonTemplate")
   summonNow:SetSize(110, 22)
-  summonNow:SetPoint("BOTTOMRIGHT", -36, 12) -- leave space so it's not under the scrollbar
+  summonNow:SetPoint("BOTTOMRIGHT", -36, 12)
   summonNow:SetText("Summon Now")
   summonNow:SetScript("OnClick", function() A.DoSummon(false) end)
 
@@ -296,12 +281,11 @@ function A.ShowOptions()
     end
   end)
 
-  -- Tell the scroll frame how tall the content is
   scrollContent:SetHeight(-y + 20)
 end
 
 -- =========================
--- Pet Manager (favorites/blacklist/counters) — always above Options
+-- Pet Manager (unchanged layout from your last good build)
 -- =========================
 local manager, rows
 function A.ToggleManager(show)
@@ -315,18 +299,16 @@ function A.ToggleManager(show)
     manager:SetSize(540, 480)
     manager:SetPoint("CENTER")
     manager:SetToplevel(true)
-    manager:SetFrameStrata("DIALOG") -- above Options
+    manager:SetFrameStrata("DIALOG")
     manager:SetFrameLevel((APK_Options and APK_Options:GetFrameLevel() or 100) + 50)
     manager:Raise()
     manager.TitleText:SetText("Azeroth Pet Keeper — Pet Manager")
 
-    -- Use template’s built-in close button
     if manager.CloseButton then
       manager.CloseButton:ClearAllPoints()
       manager.CloseButton:SetPoint("TOPRIGHT", manager, "TOPRIGHT", -4, -4)
     end
 
-    -- Headers (right-aligned to avoid scrollbar overlap)
     local h1 = manager:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     h1:SetPoint("TOPLEFT", 16, -36); h1:SetText("Name")
 
@@ -339,23 +321,20 @@ function A.ToggleManager(show)
     local h2 = manager:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     h2:SetPoint("RIGHT", h3, "LEFT", -28, 0); h2:SetText("Favorite")
 
-    -- Scroll area (raised bottom to leave room for buttons)
     local scroll = CreateFrame("ScrollFrame", "APK_ManagerScroll", manager, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 12, -56)
-    scroll:SetPoint("BOTTOMRIGHT", -30, 44) -- room for bottom row
+    scroll:SetPoint("BOTTOMRIGHT", -30, 44)
 
     local content = CreateFrame("Frame", nil, scroll)
-    -- CRITICAL: anchor content to both sides so it inherits width
     content:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
     content:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 0, 0)
-    content:SetHeight(1) -- height will be set after rows are built
+    content:SetHeight(1)
     scroll:SetScrollChild(content)
 
     rows = {}
     local ROW_H = 24
 
     local function build()
-      -- Keep content width in sync with scroll (minus scrollbar gutter)
       local w = scroll:GetWidth() - 20
       if w > 0 then content:SetWidth(w) end
 
@@ -370,12 +349,11 @@ function A.ToggleManager(show)
           local row = CreateFrame("Frame", nil, content)
           row:SetHeight(ROW_H)
           row:SetPoint("TOPLEFT", 4, y)
-          row:SetPoint("RIGHT", content, "RIGHT", -8, 0) -- anchor to content's right (fixed)
+          row:SetPoint("RIGHT", content, "RIGHT", -8, 0)
 
           local iconTex = row:CreateTexture(nil, "ARTWORK")
           iconTex:SetSize(18, 18); iconTex:SetPoint("LEFT", 2, 0); iconTex:SetTexture(icon)
 
-          -- Right side controls anchored from the RIGHT inward
           local cnt = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
           cnt:SetPoint("RIGHT", row, "RIGHT", -8, 0)
 
@@ -383,9 +361,8 @@ function A.ToggleManager(show)
           blk:SetPoint("RIGHT", cnt, "LEFT", -22, 0)
 
           local fav = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-          fav:SetPoint("RIGHT", blk, "LEFT", -36, 0) -- shift left for header alignment
+          fav:SetPoint("RIGHT", blk, "LEFT", -36, 0) -- aligned with Favorite header
 
-          -- Name fills remaining space to the left of Fav
           local name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
           name:SetPoint("LEFT", iconTex, "RIGHT", 6, 0)
           name:SetPoint("RIGHT", fav, "LEFT", -10, 0)
@@ -407,16 +384,13 @@ function A.ToggleManager(show)
       content:SetHeight(#rows * ROW_H + 8)
     end
 
-    -- Buttons row (bottom-left, clear of the scrollbar)
     local refresh = CreateFrame("Button", nil, manager, "UIPanelButtonTemplate")
     refresh:SetSize(90, 22)
     refresh:SetPoint("BOTTOMLEFT", 12, 12)
     refresh:SetText("Refresh")
     refresh:SetScript("OnClick", build)
 
-    -- Rebuild when the scroll area size changes (UI scale / resizing)
     scroll:SetScript("OnSizeChanged", function() build() end)
-
     build()
   end
 
