@@ -1,6 +1,7 @@
 {
   "Lua.workspace.library": [
-    "${workspaceFolder}/_wow_api"
+    "${workspaceFolder}/_wow_api",
+    "~/.vscode/extensions/ketho.wow-api-0.21.0/Annotations/Core"
   ],
   "Lua.diagnostics.disable": [
     "lowercase-global",
@@ -14,5 +15,29 @@
   "[lua]": {
     "editor.formatOnSave": true
   },
-  "Lua.format.enable": true
+  "Lua.format.enable": true,
+  "Lua.diagnostics.globals": [
+    "SlashCmdList",
+    "DEFAULT_CHAT_FRAME",
+    "UIDropDownMenu_Initialize",
+    "UIDropDownMenu_SetWidth",
+    "UIDropDownMenu_SetSelectedValue",
+    "UIDropDownMenu_SetText",
+    "UIParent",
+    "Minimap",
+    "GameTooltip",
+    "UIDropDownMenu_AddButton",
+    "UIDropDownMenu_CreateInfo"
+  ],
+  "Lua.runtime.builtin": {
+    "basic": "disable",
+    "debug": "disable",
+    "io": "disable",
+    "math": "disable",
+    "os": "disable",
+    "package": "disable",
+    "string": "disable",
+    "table": "disable",
+    "utf8": "disable"
+  }
 }
