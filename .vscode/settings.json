@@ -1,6 +1,5 @@
 {
   "Lua.workspace.library": [
-    "${workspaceFolder}/_wow_api",
     "~/.vscode/extensions/ketho.wow-api-0.22.1/Annotations/Core"
   ],
   "Lua.diagnostics.disable": [
